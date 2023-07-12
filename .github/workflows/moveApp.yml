@@ -1,0 +1,137 @@
+# Exports an app from a tenant, imports it to another, calls automations back
+
+name: Move app from source to target
+
+on:
+  # On PR against main
+  pull_request:
+    branches: [ "main" ]
+
+  # Manual run
+  workflow_dispatch:
+
+jobs:
+  # Single moveApp workflow
+  moveApp:
+    # Run on ubuntu-latest for additional curl features
+    runs-on: ubuntu-latest
+    permissions: write-all 
+    steps:
+    
+      # Checks-out your repository under $GITHUB_WORKSPACE
+      - name: "Checkout repo"
+        uses: actions/checkout@v3
+        
+      - name: "Check curl version"
+        run: curl --version
+          
+      - name: "Check jq version"
+        run: jq --version
+       
+      - name: "Convert ${{ github.head_ref }}.json to .env"
+        uses: ricosandyca/convert-env-json@main
+        with:
+          type: json-to-env
+          input_path: "deployments/${{ github.head_ref }}.json"
+          output_path: ".env"
+      
+      - name: "Load .env"
+        uses: aarcangeli/load-dotenv@v1.0.0
+
+      - name: "Retrieve OAuth token for source tenant"
+        run: |
+          SOURCE_TOKEN=$(curl -L "https://${{ env.sourceTenant }}/oauth/token" \
+          -X POST \
+          -H "Accept: application/json" \
+          -H "Content-Type: application/json" \
+          -d '{"client_id":"${{ vars.OAUTH_ID }}", "client_secret":"${{ secrets.OAUTH_SECRET }}", "grant_type":"client_credentials"}')
+          echo "SOURCE_TOKEN=$SOURCE_TOKEN" >> $GITHUB_ENV
+
+      - name: "Run export command on source tenant"
+        run: |
+          SOURCE_LOCATION=$(curl -I "https://${{ env.sourceTenant }}/api/v1/apps/${{ env.sourceAppId }}/export" \
+          -X POST \
+          -H "Content-Type: application/octet-stream" \
+          -H "Authorization: Bearer ${{ fromJson(env.SOURCE_TOKEN).access_token }}" \
+          | grep -F "location:" | awk '{print $2}' | tr -d '[:space:]')
+          echo "SOURCE_LOCATION=$SOURCE_LOCATION" >> $GITHUB_ENV
+          
+      - name: "Download exported app from source tenant"
+        run: |
+          curl --output "export.qvf" \
+          -X GET "https://${{ env.sourceTenant }}${{ env.SOURCE_LOCATION }}" \
+          -H "Authorization: Bearer ${{ fromJson(env.SOURCE_TOKEN).access_token }}" \
+          -H "Content-Type: application/octet-stream"
+          ls -l
+          
+      - name: "Retrieve OAuth token for target tenant"
+        run: |
+          TARGET_TOKEN=$(curl -L "https://${{ env.targetTenant }}/oauth/token" \
+          -X POST \
+          -H "Accept: application/json" \
+          -H "Content-Type: application/json" \
+          -d '{"client_id":"${{ vars.OAUTH_ID }}", "client_secret":"${{ secrets.OAUTH_SECRET }}", "grant_type":"client_credentials"}')
+          echo "TARGET_TOKEN=$TARGET_TOKEN" >> $GITHUB_ENV
+          
+      - name: "Upload app to target tenant"
+        run: |
+          TARGET_LOCATION=$(curl -L "https://${{ env.targetTenant }}/api/v1/temp-contents?filename=export.qvf" -v \
+          -X POST \
+          -H "Authorization: Bearer ${{ fromJson(env.TARGET_TOKEN).access_token }}" \
+          -H "Content-type: application/octet-stream" \
+          -H "Transfer-Encoding: chunked" \
+          -T "export.qvf" 2>&1 \
+          | grep -F "< location:" | awk '{print $3}' | tr -d '[:space:]' | awk -F / '{print $NF}')
+          echo "TARGET_LOCATION=$TARGET_LOCATION" >> $GITHUB_ENV
+          echo $TARGET_LOCATION
+          
+      - name: "Import app to shared space"
+        run: |
+          echo "APP_NAME=$(${{ env.name }} | sed 's/ /%20/g' )" >> $GITHUB_ENV
+          IMPORTED_APP=$(curl "https://${{ env.targetTenant }}/api/v1/apps/import" \
+          -X POST -G \
+          --data-urlencode 'fileId=${{ env.TARGET_LOCATION }}' \
+          --data-urlencode 'name=${{ env.APP_NAME }}' \
+          --data-urlencode 'spaceId=${{ env.targetSpaceId }}' \
+          -H "Authorization: Bearer ${{ fromJson(env.TARGET_TOKEN).access_token }}" \
+          -H "Content-type: application/json" \
+          -H "Accept: application/json"  | jq -r '.attributes.id')
+          echo "IMPORTED_APP=$IMPORTED_APP" >> $GITHUB_ENV
+          echo $IMPORTED_APP
+
+      - name: "Send callback to automations"
+        run: |
+          AUTOMATION_RESPONSE=$(curl '${{ vars.RETURN_AUTOMATION }}' \
+          -X POST \
+          -s -o /dev/null -w "%{http_code}" \
+          -H 'X-Execution-Token: ${{ secrets.RETURN_AUTOMATION_TOKEN }}' \
+          --data-urlencode 'id=${{ env.id }}' \
+          --data-urlencode 'name=${{ env.name }}' \
+          --data-urlencode 'sourcetenant=${{ env.sourceTenant }}' \
+          --data-urlencode 'targettenant=${{ env.targetTenant }}' \
+          --data-urlencode 'targetspaceid=${{ env.targetSpaceId }}' \
+          --data-urlencode 'sourceappid=${{ env.sourceAppId }}' \
+          --data-urlencode 'newappid=${{ env.IMPORTED_APP }}')
+          echo "AUTOMATION_RESPONSE=$AUTOMATION_RESPONSE" >> $GITHUB_ENV
+      
+      - name: "Verify automation response code"
+        run: if [ "${{ fromJson( env.AUTOMATION_RESPONSE ) }}" -ne 200 ]; then exit "${{ fromJson( env.AUTOMATION_RESPONSE ) }}"; fi
+        
+      - name: Comment PR
+        uses: thollander/actions-comment-pull-request@v2.3.1
+        with:
+          message: |
+            Content deployed successfully (${{ env.AUTOMATION_RESPONSE }} response) to [${{ env.targetTenant }}](https://${{ env.targetTenant }}/sense/app/${{ env.IMPORTED_APP }}).
+      
+      - id: automerge
+        name: Merge the PR
+        uses: "pascalgn/automerge-action@v0.15.6"
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          MERGE_LABELS: "!x"
+          
+      - name: Confirm PR merged
+        if: steps.automerge.outputs.mergeResult == 'merged'
+        run: |
+          echo "Pull request ${{ steps.automerge.outputs.pullRequestNumber }} merged."
+    

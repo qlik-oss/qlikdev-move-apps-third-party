@@ -1,0 +1,8 @@
+{
+    "id":"fe209fb0-1f28-11ee-bbf8-4345a6392f0b-bieeuynf",
+    "name":"My App",
+    "sourceTenant":"source.eu.qlikcloud.com",
+    "targetTenant":"target.eu.qlikcloud.com",
+    "targetSpaceId":"6489d77b02d0073123428d84",
+    "sourceAppId":"b2d857b3-b03d-4a88-9fdd-10725979ff4f"
+}
