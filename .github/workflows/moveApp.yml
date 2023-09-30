@@ -20,7 +20,7 @@ jobs:
     
       # Checks-out your repository under $GITHUB_WORKSPACE
       - name: "Checkout repo"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         
       - name: "Check curl version"
         run: curl --version
