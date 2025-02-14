@@ -118,7 +118,7 @@ jobs:
         run: if [ "${{ fromJson( env.AUTOMATION_RESPONSE ) }}" -ne 200 ]; then exit "${{ fromJson( env.AUTOMATION_RESPONSE ) }}"; fi
         
       - name: Comment PR
-        uses: thollander/actions-comment-pull-request@v2.3.1
+        uses: thollander/actions-comment-pull-request@v3.0.1
         with:
           message: |
             Content deployed successfully (${{ env.AUTOMATION_RESPONSE }} response) to [${{ env.targetTenant }}](https://${{ env.targetTenant }}/sense/app/${{ env.IMPORTED_APP }}).
