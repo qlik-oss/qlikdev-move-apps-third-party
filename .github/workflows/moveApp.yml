@@ -36,7 +36,7 @@ jobs:
           output_path: ".env"
       
       - name: "Load .env"
-        uses: aarcangeli/load-dotenv@v1.0.0
+        uses: aarcangeli/load-dotenv@2afd907c7bb1c0324d22a6192693213867e77443 # v1.1.0
 
       - name: "Retrieve OAuth token for source tenant"
         run: |
@@ -118,14 +118,14 @@ jobs:
         run: if [ "${{ fromJson( env.AUTOMATION_RESPONSE ) }}" -ne 200 ]; then exit "${{ fromJson( env.AUTOMATION_RESPONSE ) }}"; fi
         
       - name: Comment PR
-        uses: thollander/actions-comment-pull-request@v2.3.1
+        uses: thollander/actions-comment-pull-request@fabd468d3a1a0b97feee5f6b9e499eab0dd903f6 # v2.5.0
         with:
           message: |
             Content deployed successfully (${{ env.AUTOMATION_RESPONSE }} response) to [${{ env.targetTenant }}](https://${{ env.targetTenant }}/sense/app/${{ env.IMPORTED_APP }}).
       
       - id: automerge
         name: Merge the PR
-        uses: "pascalgn/automerge-action@v0.15.6"
+        uses: "pascalgn/automerge-action@7961b8b5eec56cc088c140b56d864285eabd3f67" # v0.16.4
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           MERGE_LABELS: "!x"
