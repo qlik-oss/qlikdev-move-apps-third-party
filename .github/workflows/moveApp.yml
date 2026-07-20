@@ -20,7 +20,7 @@ jobs:
     
       # Checks-out your repository under $GITHUB_WORKSPACE
       - name: "Checkout repo"
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         
       - name: "Check curl version"
         run: curl --version
@@ -29,14 +29,14 @@ jobs:
         run: jq --version
        
       - name: "Convert ${{ github.head_ref }}.json to .env"
-        uses: ricosandyca/convert-env-json@main
+        uses: ricosandyca/convert-env-json@511082108bd67f75dfd13bfb5cd467b5740055ad # main
         with:
           type: json-to-env
           input_path: "deployments/${{ github.head_ref }}.json"
           output_path: ".env"
       
       - name: "Load .env"
-        uses: aarcangeli/load-dotenv@v1.0.0
+        uses: aarcangeli/load-dotenv@07308abf0428acf37ca91476fbd580ab2ceb8423 # v1.0.0
 
       - name: "Retrieve OAuth token for source tenant"
         run: |
@@ -118,14 +118,14 @@ jobs:
         run: if [ "${{ fromJson( env.AUTOMATION_RESPONSE ) }}" -ne 200 ]; then exit "${{ fromJson( env.AUTOMATION_RESPONSE ) }}"; fi
         
       - name: Comment PR
-        uses: thollander/actions-comment-pull-request@v2.3.1
+        uses: thollander/actions-comment-pull-request@632cf9ce90574d125be56b5f3405cda41a84e2fd # v2.3.1
         with:
           message: |
             Content deployed successfully (${{ env.AUTOMATION_RESPONSE }} response) to [${{ env.targetTenant }}](https://${{ env.targetTenant }}/sense/app/${{ env.IMPORTED_APP }}).
       
       - id: automerge
         name: Merge the PR
-        uses: "pascalgn/automerge-action@v0.15.6"
+        uses: "pascalgn/automerge-action@22948e0bc22f0aa673800da838595a3e7347e584" # v0.15.6
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           MERGE_LABELS: "!x"
